@@ -19,6 +19,7 @@ create table if not exists fast_growing_jourlal(
 
 insert into fast_growing_jourlal(ms_part, event_ts, employee, event_data) values(0, minTimeuuid('2015-01-01'), 'jkowalski', 'Error 1'); 
 insert into fast_growing_jourlal(ms_part, event_ts, employee, event_data) values(1, minTimeuuid('2015-01-02'), 'jkowalski', 'Error 2');
+insert into fast_growing_jourlal(ms_part, event_ts, employee, event_data) values(1, minTimeuuid('2015-01-06'), 'jkowalski', 'Error 22');
 insert into fast_growing_jourlal(ms_part, event_ts, employee, event_data) values(2, minTimeuuid('2015-01-03'), 'jkowalski', 'Error 3');
 insert into fast_growing_jourlal(ms_part, event_ts, employee, event_data) values(3, minTimeuuid('2015-01-04'), 'jkowalski', 'Error 4');
 insert into fast_growing_jourlal(ms_part, event_ts, employee, event_data) values(3, minTimeuuid('2015-01-05'), 'jnowak', 'Error 6');
@@ -33,6 +34,9 @@ insert into fast_growing_jourlal(ms_part, event_ts, employee, event_data) values
 select ms_part, dateOf(event_ts), employee, event_data from fast_growing_jourlal;
 select ms_part, dateOf(event_ts), employee, event_data from fast_growing_jourlal where ms_part = 3;
 select ms_part, dateOf(event_ts), employee, event_data from fast_growing_jourlal where ms_part = 3 order by event_ts desc;
+
+select * from fast_growing_jourlal where ms_part in (0,1,2,3) order by event_ts desc;
+select * from fast_growing_jourlal where ms_part in (0,1,2,3) order by event_ts asc;
 
  
 
