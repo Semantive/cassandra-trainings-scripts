@@ -1,14 +1,14 @@
 USE songbrowser;
 
 /** Albums */
-INSERT INTO albums (artist, release_year, album_title, id, country_recorded, genre, record_label)
-VALUES ('Red Hot Chili Peppers', 2002, 'By the Way', uuid(), 'USA', 'Funk', 'WMG');
+INSERT INTO albums (artist, release_year, album_title, country_recorded, genre, record_label, producer)
+VALUES ('Red Hot Chili Peppers', 2002, 'By the Way', 'USA', 'Funk', 'WMG', { symbol: 'WMG', name: 'Warner Music Group', country_code: 'US' });
 
-INSERT INTO albums (artist, release_year, album_title, id, country_recorded, genre, record_label)
-VALUES ('System of a Down', 2005, 'Hypnotize', uuid(), 'USA', 'Hard rock', 'American');
+INSERT INTO albums (artist, release_year, album_title, country_recorded, genre, record_label, producer)
+VALUES ('System of a Down', 2005, 'Hypnotize', 'USA', 'Hard rock', 'American', { symbol: 'AR', name: 'American Records', country_code: 'US' });
 
-INSERT INTO albums (artist, release_year, album_title, id, country_recorded, genre, record_label)
-VALUES ('System of a Down', 2005, 'Mezmerize', uuid(), 'USA', 'Hard rock', 'American');
+INSERT INTO albums (artist, release_year, album_title, country_recorded, genre, record_label, producer)
+VALUES ('System of a Down', 2005, 'Mezmerize', 'USA', 'Hard rock', 'American', { symbol: 'AR', name: 'American Records', country_code: 'US' });
 
 /** Songs by album */
 INSERT INTO songs_by_albums (release_year, album_title, track_no, id, artist, genre, performers, song_title)

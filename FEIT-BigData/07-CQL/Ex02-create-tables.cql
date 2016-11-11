@@ -2,14 +2,13 @@ USE songbrowser;
 
 /** 2.1 Albums table */
 CREATE TABLE IF NOT EXISTS albums (
-  id             UUID,
   album_title    VARCHAR,
   artist         VARCHAR,
   genre          VARCHAR,
   producer       VARCHAR,
   record_label   VARCHAR,
   release_year   INT,
-  PRIMARY KEY ((artist), release_year, album_title, id)
+  PRIMARY KEY ((artist), release_year, album_title)
 );
 
 /** 2.2 Songs by album table */
