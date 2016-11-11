@@ -16,4 +16,4 @@ CREATE TYPE ProducerData (
 );
 
 /** Add Producer column to Albums table */
-ALTER TABLE albums ADD producer ProducerData;
+ALTER TABLE albums ADD producer frozen<ProducerData>;
