@@ -1,7 +1,7 @@
 USE songbrowser;
 
 /** Create index on Genre on songs_by_artists */
-CREATE INDEX ON songs_by_artists (genre);
+CREATE INDEX IF NOT EXISTS ON songs_by_artists (genre);
 
 /** Select songs by genre */
 SELECT * FROM songs_by_artists WHERE genre = 'Funk';
