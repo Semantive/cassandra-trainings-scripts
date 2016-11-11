@@ -1,7 +1,7 @@
 USE songbrowser;
 
 /** 2.1 Albums table */
-CREATE TABLE albums (
+CREATE TABLE IF NOT EXISTS albums (
   id             UUID,
   album_title    VARCHAR,
   artist         VARCHAR,
@@ -13,7 +13,7 @@ CREATE TABLE albums (
 );
 
 /** 2.2 Songs by album table */
-CREATE TABLE songs_by_albums (
+CREATE TABLE IF NOT EXISTS songs_by_albums (
   id             UUID,
   album_title    VARCHAR,
   artist         VARCHAR,
@@ -26,7 +26,7 @@ CREATE TABLE songs_by_albums (
 );
 
 /** 2.3 Songs by artist table */
-CREATE TABLE songs_by_artists (
+CREATE TABLE IF NOT EXISTS songs_by_artists (
   id             UUID,
   album_title    VARCHAR,
   artist         VARCHAR,

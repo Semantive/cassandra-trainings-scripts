@@ -6,4 +6,4 @@ WITH REPLICATION = {
 }; 
 
 /** Show all keyspaces */
-DESCRIBE KEYSPACES;
+select * from system_schema.keyspaces;
