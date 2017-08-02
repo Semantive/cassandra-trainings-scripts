@@ -19,8 +19,9 @@ use auctions;
 INSERT INTO users_by_email (email, user_id) VALUES ('test@semantive.com', uuid()) IF NOT EXISTS;
  
 BEGIN BATCH 
-	INSERT INTO users (id, name, surname, nick, email, account_balance, active)
-		VALUES (20cd62f7-956e-4f33-aecd-29a6cd204b4e, 'John', 'Dee', 'jdee', 'john.dee@semantive.com', 150, false) 
+	INSERT INTO users (id, name, surname, name_surname, nick, email, account_balance, active)
+		VALUES (20cd62f7-956e-4f33-aecd-29a6cd204b4e, 'John', 'Dee', 'John Dee', 'jdee', 
+			'john.dee@semantive.com', 150, false) 
 		USING TTL 259200;
 	
 	INSERT INTO tokens (token_value, user_id) 
@@ -38,7 +39,7 @@ APPLY BATCH;
  */
 BEGIN BATCH 
 	UPDATE users USING TTL 0
-	SET name='John', surname='Dee', nick='jdee', email='john.dee@semantive.com', account_balance=0, active=true
+	SET name='John', surname='Dee', name_surname = 'John Dee', nick='jdee', email='john.dee@semantive.com', account_balance=0, active=true
 	WHERE id = 20cd62f7-956e-4f33-aecd-29a6cd204b4e;
 	
 	UPDATE users_by_email USING TTL 259200 SET user_id = 20cd62f7-956e-4f33-aecd-29a6cd204b4e
@@ -50,8 +51,9 @@ APPLY BATCH;
 /**
  * Auxiliary user, used as a bidder
  */
-INSERT INTO users (id, name, surname, nick, email, account_balance, active)
-	VALUES (6ca101bc-388e-46bb-970c-d82fd4d13654, 'Matt', 'Bidder', 'bidder', 'matt.b@bidder.com', 200, true); 
+INSERT INTO users (id, name, surname, name_surname, nick, email, account_balance, active)
+	VALUES (6ca101bc-388e-46bb-970c-d82fd4d13654, 'Matt', 'Bidder', 'Matt Bidder', 
+		'bidder', 'matt.b@bidder.com', 200, true); 
 
 
 
