@@ -1,6 +1,8 @@
 /**
  * Auction system
  */
+DROP KEYSPACE IF exists auctions; 
+ 
 create keyspace if not exists auctions  
 with replication = {
 	'class': 'SimpleStrategy', 'replication_factor': 1
@@ -78,7 +80,9 @@ CREATE TABLE IF NOT EXISTS bucket_creation_date (
 	bucket timeuuid,
 	bucket_counter counter,
 	PRIMARY KEY (year, bucket) 
-) WITH CLUSTERING ORDER BY (bucket DESC);
+) WITH CLUSTERING ORDER BY (bucket DESC)
+	AND caching = {'rows_per_partition': '1'};
+
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS items_by_name AS 
 	SELECT id, auctioneer_id, name, description, creation_time, expiration_date, tags, 
@@ -99,8 +103,12 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS items_by_creation_time AS
 	AND creation_time IS NOT NULL
 	AND bucket_creation_date IS NOT NULL
 	PRIMARY KEY (bucket_creation_date, creation_time, name, id)
-	WITH CLUSTERING ORDER BY (creation_time DESC);
+	WITH CLUSTERING ORDER BY (creation_time DESC)
+		AND compaction = {'class': 'org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy', 
+			'compaction_window_unit': 'DAYS', 'compaction_window_size': '30'};
 
+-- Updating views in source table causes deletion and insertion in items_by_name_by_views view.
+-- It results with multiple tombstones. To reduce its number set gc_grace_seconds for 2 days.
 CREATE MATERIALIZED VIEW IF NOT EXISTS items_by_name_by_views AS 
 	SELECT id, auctioneer_id, name, description, creation_time, expiration_date, tags, last_offer, 
 		offers_bidders, offers_values, views, bids    
@@ -110,8 +118,11 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS items_by_name_by_views AS
 	AND creation_time IS NOT NULL
 	AND views IS NOT NULL
 	PRIMARY KEY (name, views, id, creation_time)
-	WITH CLUSTERING ORDER BY (views DESC);
+	WITH CLUSTERING ORDER BY (views DESC)
+		AND gc_grace_seconds = 172800;
 
+-- Updating bids in source table causes deletion and insertion in items_by_name_by_bids view.
+-- It results with multiple tombstones. To reduce its number set gc_grace_seconds for 4 days.
 CREATE MATERIALIZED VIEW IF NOT EXISTS items_by_name_by_bids AS 
 	SELECT id, auctioneer_id, name, description, creation_time, expiration_date, tags, last_offer,
 		 offers_bidders, offers_values, views, bids    
@@ -121,14 +132,17 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS items_by_name_by_bids AS
 	AND creation_time IS NOT NULL
 	AND bids IS NOT NULL
 	PRIMARY KEY (name, bids, id, creation_time)
-	WITH CLUSTERING ORDER BY (bids DESC);
+	WITH CLUSTERING ORDER BY (bids DESC)
+		AND gc_grace_seconds = 345600;
 
 CREATE TABLE IF NOT EXISTS items_views_histogram(
 	item_name varchar,
 	time_discriminator timestamp,
 	views counter,
 	PRIMARY KEY(item_name, time_discriminator)
-);
+) WITH compaction = {'class': 'org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy', 
+		'compaction_window_unit': 'DAYS', 'compaction_window_size': '30'};
+
 
 CREATE TABLE IF NOT EXISTS item_views(
 	item_id uuid PRIMARY KEY,
