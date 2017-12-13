@@ -8,8 +8,9 @@ with replication = {
 
 use auctions;
 
+
 /**
- * 
+ * Users' primary store
  */
 CREATE TABLE IF NOT EXISTS users(
 	id uuid,
@@ -24,7 +25,7 @@ CREATE TABLE IF NOT EXISTS users(
 );
 
 /**
- * used to check email uniqueness only
+ * Used to check email uniqueness only
  */
 CREATE TABLE IF NOT EXISTS users_by_email(
 	email varchar,
@@ -32,6 +33,20 @@ CREATE TABLE IF NOT EXISTS users_by_email(
 	PRIMARY KEY(email)
 );
 
+/**
+ * Unique tokens, generated for user registration.
+ * This table could be merged with users.
+ */
+CREATE TABLE IF NOT EXISTS tokens(
+	token_value uuid PRIMARY KEY,
+	user_id uuid
+);
+
+/**
+ * NOTE: there is a problem with updating UDT inside collection, 
+ * since it has to be frozen. 
+ * This is why items uses two separates list offers: offers_bidders and offers_values   
+ */
 CREATE TYPE IF NOT EXISTS offer (
 	value decimal,
 	time timestamp,
@@ -51,75 +66,61 @@ CREATE TABLE IF NOT EXISTS items(
 	offers_values list<decimal>,
 
 	--columns for rankings - materialized views	
-	firs_letter_of_name varchar,
-	creation_year int,
-	creation_month int,
-
+	name_prefix varchar,
 	views bigint,
 	bids bigint,
-	bucket_firs_letter_of_name bigint,
-	PRIMARY KEY(id, name, firs_letter_of_name, creation_time, creation_year, creation_month)
+	bucket_creation_date timeuuid,
+	PRIMARY KEY(id, name, creation_time)
 );
 
-CREATE TABLE IF NOT EXISTS bucket_first_letter_of_item ( 
-	firs_letter varchar, 
-	bucket bigint,
+CREATE TABLE IF NOT EXISTS bucket_creation_date ( 
+	year int,
+	bucket timeuuid,
 	bucket_counter counter,
-	PRIMARY KEY (firs_letter, bucket) 
+	PRIMARY KEY (year, bucket) 
 ) WITH CLUSTERING ORDER BY (bucket DESC);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS items_by_name AS 
-	SELECT id, auctioneer_id, name, description, creation_time, expiration_date, tags, last_offer, offers_bidders,
-		offers_values, firs_letter_of_name, creation_year, creation_month, views, bids, bucket_firs_letter_of_name    
+	SELECT id, auctioneer_id, name, description, creation_time, expiration_date, tags, 
+		last_offer, offers_bidders, offers_values, name_prefix, views, bids
 	FROM items
 	WHERE id IS NOT NULL 
 	AND name IS NOT NULL 
-	AND firs_letter_of_name IS NOT NULL 
+	AND name_prefix IS NOT NULL 
 	AND creation_time IS NOT NULL
-	AND creation_year IS NOT NULL
-	AND creation_month IS NOT NULL
-	AND bucket_firs_letter_of_name IS NOT NULL
-	PRIMARY KEY ((firs_letter_of_name, bucket_firs_letter_of_name), name, creation_time, creation_year, creation_month, id);
+	PRIMARY KEY (name_prefix, name, creation_time, id);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS items_by_creation_time AS 
 	SELECT id, auctioneer_id, name, description, creation_time, expiration_date, tags, last_offer, 
-		offers_bidders, offers_values, firs_letter_of_name, creation_year, creation_month, views, bids
+		offers_bidders, offers_values, views, bids, bucket_creation_date
 	FROM items
 	WHERE id IS NOT NULL 
 	AND name IS NOT NULL 
-	AND firs_letter_of_name IS NOT NULL 
 	AND creation_time IS NOT NULL
-	AND creation_year IS NOT NULL
-	AND creation_month IS NOT NULL
-	PRIMARY KEY ((creation_year, creation_month), creation_time, name, firs_letter_of_name, id)
+	AND bucket_creation_date IS NOT NULL
+	PRIMARY KEY (bucket_creation_date, creation_time, name, id)
 	WITH CLUSTERING ORDER BY (creation_time DESC);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS items_by_name_by_views AS 
 	SELECT id, auctioneer_id, name, description, creation_time, expiration_date, tags, last_offer, 
-		offers_bidders, offers_values, firs_letter_of_name, creation_year, creation_month, views, bids    
+		offers_bidders, offers_values, views, bids    
 	FROM items
 	WHERE id IS NOT NULL 
 	AND name IS NOT NULL 
-	AND firs_letter_of_name IS NOT NULL 
 	AND creation_time IS NOT NULL
-	AND creation_year IS NOT NULL
-	AND creation_month IS NOT NULL
 	AND views IS NOT NULL
-	PRIMARY KEY (name, views, id, creation_time, creation_year, creation_month, firs_letter_of_name)
+	PRIMARY KEY (name, views, id, creation_time)
 	WITH CLUSTERING ORDER BY (views DESC);
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS items_by_name_by_bids AS 
 	SELECT id, auctioneer_id, name, description, creation_time, expiration_date, tags, last_offer,
-		 offers_bidders, offers_values, firs_letter_of_name, creation_year, creation_month, views, bids    
+		 offers_bidders, offers_values, views, bids    
 	FROM items
 	WHERE id IS NOT NULL 
 	AND name IS NOT NULL 
-	AND firs_letter_of_name IS NOT NULL 
 	AND creation_time IS NOT NULL
-	AND creation_year IS NOT NULL
-	AND creation_month IS NOT NULL
 	AND bids IS NOT NULL
-	PRIMARY KEY (name, bids, id, creation_time, creation_year, creation_month, firs_letter_of_name)
+	PRIMARY KEY (name, bids, id, creation_time)
 	WITH CLUSTERING ORDER BY (bids DESC);
 
 CREATE TABLE IF NOT EXISTS items_views_histogram(
@@ -151,11 +152,6 @@ CREATE MATERIALIZED VIEW IF NOT EXISTS inverse_transactions AS
 	PRIMARY KEY (auctioneer_id, time, bidder_id)
 	WITH CLUSTERING ORDER BY (time DESC);
 
-
-CREATE TABLE IF NOT EXISTS tokens(
-	token_value uuid PRIMARY KEY,
-	user_id uuid
-);
 
 CREATE CUSTOM INDEX IF NOT EXISTS users_by_name_surname ON users (name_surname) USING 'org.apache.cassandra.index.sasi.SASIIndex'
   WITH OPTIONS = { 'mode': 'CONTAINS' };

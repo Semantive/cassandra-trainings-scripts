@@ -16,12 +16,13 @@ use auctions;
 /**
  * verify if email is available, and just register it if it's unique and continue procedure
  */
-INSERT INTO users_by_email (email, user_id) VALUES ('test@semantive.com', uuid()) IF NOT EXISTS;
+INSERT INTO users_by_email (email, user_id) 
+VALUES ('john.dee@semantive.com', 20cd62f7-956e-4f33-aecd-29a6cd204b4e) IF NOT EXISTS;
  
 BEGIN BATCH 
 	INSERT INTO users (id, name, surname, name_surname, nick, email, account_balance, active)
 		VALUES (20cd62f7-956e-4f33-aecd-29a6cd204b4e, 'John', 'Dee', 'John Dee', 'jdee', 
-			'john.dee@semantive.com', 150, false) 
+			'john.dee@semantive.com', 200, false) 
 		USING TTL 259200;
 	
 	INSERT INTO tokens (token_value, user_id) 
@@ -63,24 +64,25 @@ INSERT INTO users (id, name, surname, name_surname, nick, email, account_balance
  
 /**
  * Get the current 'bucket' for the first_letter of adding product. If it's empty, then bucket is 0
- * The table is sorted desc by bucket, then the first row on the partition is the current one. 
+ * The table is sorted descending by bucket, then the first row on the partition is the current one. 
  */
-SELECT bucket, bucket_counter from bucket_first_letter_of_item where firs_letter = 't' LIMIT 1;
+SELECT bucket, bucket_counter from bucket_creation_date where year = 2017 LIMIT 1;
  
 /**
- * If the bucket_counter is greater than MAX_BUCKET_SIZE, than increment bucket and 
- * Update bucket_counter for a new bucket value 
+ * 1. If the bucket_counter is greater than MAX_BUCKET_SIZE, than increment bucket. 
+ * 2. Increment bucket_counter for the current bucket value. 
  */ 
-UPDATE bucket_first_letter_of_item SET bucket_counter = bucket_counter + 1
-WHERE firs_letter = 't' and bucket = 0;
+UPDATE bucket_creation_date SET bucket_counter = bucket_counter + 1
+WHERE year = 2017 and bucket = minTimeuuid('2017-08-01');
  
 /**
- * Insert a new item, with bucket_firs_letter_of_name set with value from counter table
+ * Insert a new item, with bucket_creation_date set with value from the bucket table
  */ 
-INSERT INTO items (id, auctioneer_id, name, description, creation_time, expiration_date, tags,  
-	firs_letter_of_name, creation_year, creation_month, views, bids, bucket_firs_letter_of_name)
+INSERT INTO items (id, auctioneer_id, name, description, creation_time, expiration_date, 
+	last_offer, tags, name_prefix, views, bids, bucket_creation_date)
 VALUES (26ea7804-31ba-4129-9ade-1a1789566ed5, 20cd62f7-956e-4f33-aecd-29a6cd204b4e, 'tv set', 
-	'brand new samsung tv set', minTimeuuid('2017-08-01'), '2017-09-01', {'tv'}, 't', 2017, 8, 0, 0, 0);
+	'brand new samsung tv set', minTimeuuid('2017-08-01'), '2017-09-01', 
+	0.0, {'tv'}, 'tv', 0, 0, minTimeuuid('2017-08-01'));
  
 
 /**
@@ -102,8 +104,8 @@ where id = 26ea7804-31ba-4129-9ade-1a1789566ed5;
  */
 UPDATE items SET offers_bidders = [6ca101bc-388e-46bb-970c-d82fd4d13654],
 	offers_values =  [80.0], last_offer = 80.0, bids = 1 
-WHERE id = 26ea7804-31ba-4129-9ade-1a1789566ed5 and name = 'tv set' and firs_letter_of_name = 't' 
-	and creation_time = minTimeuuid('2017-08-01') and creation_year = 2017 and creation_month = 8
+WHERE id = 26ea7804-31ba-4129-9ade-1a1789566ed5 and name = 'tv set' 
+	and creation_time = minTimeuuid('2017-08-01') 
 IF last_offer = 0.0;
  
  
@@ -117,9 +119,23 @@ IF last_offer = 0.0;
 select * from users where id = 6ca101bc-388e-46bb-970c-d82fd4d13654;
  
 /**
- * 1. Decrease the bidder's account_balance with accepted price. It's executed transactionally.
+ * Version1: Transactions per table, no atomicity over multiple tables
+ * 1. Decrease the bidder's account_balance with accepted price, transactional
+ * 2. Insert a new transaction, transactional
+ */
+UPDATE users SET account_balance = 120.0 
+WHERE id = 6ca101bc-388e-46bb-970c-d82fd4d13654 IF account_balance = 200.0;
+	
+INSERT INTO transactions (bidder_id, auctioneer_id, time, item_id, price)
+VALUES (6ca101bc-388e-46bb-970c-d82fd4d13654, 20cd62f7-956e-4f33-aecd-29a6cd204b4e, now(), 
+	26ea7804-31ba-4129-9ade-1a1789566ed5, 80.0) IF NOT EXISTS;
+ 
+ 
+/**
+ * Version2: Non transactional, atomic update of user account and transactions
+ * 1. Decrease the bidder's account_balance with accepted price. 
  * 2. Insert a new transaction.
- * NODE: Decreasing account_ballance is not isolated
+ * NOTE: Decreasing account_ballance is not isolated
  */
 BEGIN BATCH 
 	UPDATE users SET account_balance = 120.0 
@@ -152,8 +168,9 @@ WHERE item_id = 26ea7804-31ba-4129-9ade-1a1789566ed5;
 SELECT views FROM item_views WHERE item_id = 26ea7804-31ba-4129-9ade-1a1789566ed5;
 
 UPDATE items SET views = 10 
-WHERE id = 26ea7804-31ba-4129-9ade-1a1789566ed5 and name = 'tv set' and firs_letter_of_name = 't' 
-	and creation_time = minTimeuuid('2017-08-01') and creation_year = 2017 and creation_month = 8;
+WHERE id = 26ea7804-31ba-4129-9ade-1a1789566ed5 
+	and name = 'tv set' 
+	and creation_time = minTimeuuid('2017-08-01');
 
 UPDATE items_views_histogram SET views = views + 1
 WHERE item_name = 'tv set' AND time_discriminator = '2017-08-01';
@@ -163,56 +180,61 @@ WHERE item_name = 'tv set' AND time_discriminator = '2017-08-01';
  */
 
 /**
- * Get the first item to start paging 
+ * The naive solutions uses first latter of name as name prefix - the partition key 
  */
-select creation_time, creation_year, creation_month, id 
-from items_by_name 
-where firs_letter_of_name = 'a' and bucket_firs_letter_of_name = 0 LIMIT 1;
- 
-/**
- * Get the last bucket for the first letter of name. 
- * It is used to check when paging should move to the next letter.
- */ 
-SELECT bucket FROM bucket_first_letter_of_item WHERE firs_letter = 'a';
- 
-/**
- * The first query for each first_letter_of_name starts with bucket 0 and no range
- */  
-SELECT * FROM items_by_name
-WHERE firs_letter_of_name='a' AND bucket_firs_letter_of_name = 0; 
+--first
+select * from items_by_name where name_prefix = 'a' LIMIT 1;
+
+--next
+select * from items_by_name where name_prefix = 'a' 
+and name > 'the last name returned by the previous query' LIMIT 1;
 
 /**
- * 1. The next queries uses the initial bucket until they can fetch the next page. 
- * 2. If there is no data for a given bucket, then the bucket is incremented by 1
- * 3. When bucket_firs_letter_of_name exceeds the latest bucket for the querying letter 
- *    taken from the previous step, then query takes the next letter, initial bucket 0 for it and  
- *    get the latest bucket from bucket_first_letter_of_item table to get a new bucket limit. 
- * 
- * NOTE: Each query requires comparing the name column with the latest one.  
+ * QUERY - Paging items sorted by time
  */
+
+/**
+ * Get the first page of 50 items
+ */
+select * from items_by_creation_time LIMIT 50;
  
-SELECT * FROM items_by_name
-WHERE firs_letter_of_name='a' AND bucket_firs_letter_of_name = 1 and name > 'tv set';
+/**
+ * Get the last bucket which is greater or equal the last returned item's creation time.
+ * It is used to select the next page. If bucket_counter < page size, than we know the another
+ * bucket will be needed.
+ */ 
+SELECT bucket, bucket_counter FROM bucket_creation_date 
+WHERE year = 2017 and bucket >= minTimeuuid('2017-10-01')
+LIMIT 1;
+ 
+/**
+ * 1. The next queries uses the retrieved bucket until they can fetch the next page. 
+ * 2. If there is no data for a given bucket, then selecting items from the time rank query the next bucket
+ */
+SELECT * FROM items_by_creation_time
+WHERE bucket_creation_date = minTimeuuid('2017-10-01') 
+	AND creation_time > minTimeuuid('2017-10-01')
+LIMIT 50;
 
 
 /**
  * QUERY - Paging items sorted by number of views for a item name
  */
  -- first
- select * from items_by_name_by_views where name = 'tv set'; 
+ select * from items_by_name_by_views where name = 'tv set' LIMIT 50; 
   -- next
  select * from items_by_name_by_views 
- where name = 'tv set' and (views, id) > (0, 26ea7804-31ba-4129-9ade-1a1789566ed5);
+ where name = 'tv set' and (views, id) > (0, 26ea7804-31ba-4129-9ade-1a1789566ed5) LIMIT 50;
  
  
 /**
  * QUERY - Paging items sorted by number of bids for a item name
  */
  -- first
- select * from items_by_name_by_bids where name = 'tv set'; 
+ select * from items_by_name_by_bids where name = 'tv set' LIMIT 50; 
   -- next
  select * from items_by_name_by_bids 
- where name = 'tv set' and (bids, id) > (0, 26ea7804-31ba-4129-9ade-1a1789566ed5); 
+ where name = 'tv set' and (bids, id) > (0, 26ea7804-31ba-4129-9ade-1a1789566ed5) LIMIT 50; 
  
  
 /**
