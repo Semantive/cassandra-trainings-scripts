@@ -8,6 +8,9 @@ with replication = {
 
 use auctions;
 
+/**
+ * 
+ */
 CREATE TABLE IF NOT EXISTS users(
 	id uuid,
 	name varchar,
